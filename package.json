@@ -3,7 +3,7 @@
   "main": "./App.tsx",
   "version": "1.0.0",
   "scripts": {
-    "start": "expo start --clear",
+    "start": "node init && expo start --clear",
     "android": "expo start --android --clear",
     "ios": "expo start --ios --clear"
   },

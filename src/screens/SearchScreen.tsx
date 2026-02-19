@@ -76,8 +76,12 @@ export const SearchScreen: React.FC = () => {
         if (songRes.status === 'fulfilled') setSongs(songRes.value.songs);
         else setSongs([]);
 
-        if (artistRes.status === 'fulfilled') setArtists(artistRes.value.artists);
-        else setArtists([]);
+        if (artistRes.status === 'fulfilled') {
+            const validArtists = artistRes.value.artists.filter(a => a.image && a.image.length > 0 && a.image[0].url);
+            setArtists(validArtists);
+        } else {
+            setArtists([]);
+        }
 
         if (albumRes.status === 'fulfilled') setAlbums(albumRes.value.albums);
         else setAlbums([]);

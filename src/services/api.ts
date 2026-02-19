@@ -1,4 +1,4 @@
-import { Song, SearchResponse, SongDetailResponse, Artist, SearchArtistResponse } from '../types';
+import { Song, SearchResponse, SongDetailResponse, Artist, SearchArtistResponse, Album, SearchAlbumResponse } from '../types';
 
 const BASE_URL = 'https://saavn.sumit.co';
 
@@ -126,4 +126,60 @@ export async function getArtistSongs(id: string, page: number = 1): Promise<{ so
         songs: (json.data.songs || []).map(normalizeSong),
         total: json.data.total || 0
     };
+}
+
+// 📀 NORMALIZE ALBUM
+function normalizeAlbum(item: any): Album {
+  return {
+    id: item.id,
+    name: item.name,
+    year: item.year || '',
+    type: item.type,
+    playCount: item.playCount,
+    language: item.language,
+    explicitContent: item.explicitContent,
+    songCount: item.songCount,
+    url: item.url,
+    primaryArtists: item.primaryArtists || (item.artists?.primary?.map((a: any) => a.name).join(', ') || 'Unknown Artist'),
+    image: (typeof item.image === 'string') ? [{ quality: '500x500', url: item.image }] : item.image || [],
+    songs: (item.songs || []).map(normalizeSong)
+  };
+}
+
+// 🔎 SEARCH ALBUMS
+export async function searchAlbums(query: string, page: number = 1, limit: number = 20): Promise<{ albums: Album[]; total: number }> {
+  const response = await fetch(
+    `${BASE_URL}/api/search/albums?query=${encodeURIComponent(query)}&page=${page}&limit=${limit}`
+  );
+
+  if (!response.ok) {
+    throw new Error(`Search albums failed: ${response.status}`);
+  }
+
+  const json: SearchAlbumResponse = await response.json();
+
+  if (!json.success) {
+    throw new Error('Search albums API returned failure');
+  }
+
+  return {
+    albums: (json.data.results || []).map(normalizeAlbum),
+    total: json.data.total || 0,
+  };
+}
+
+// 💿 GET ALBUM DETAILS
+export async function getAlbumDetails(id: string): Promise<Album | null> {
+  const response = await fetch(`${BASE_URL}/api/albums?id=${id}`);
+  
+  if (!response.ok) {
+     throw new Error(`Get album details failed: ${response.status}`);
+  }
+
+  const json = await response.json();
+  if (!json.success || !json.data) {
+      return null;
+  }
+  
+  return normalizeAlbum(json.data);
 }

@@ -10,6 +10,7 @@ import { MainTabs } from './src/navigation/MainTabs';
 import { PlayerScreen } from './src/screens/PlayerScreen';
 import { QueueScreen } from './src/screens/QueueScreen';
 import { ArtistDetailScreen } from './src/screens/ArtistDetailScreen';
+import { AlbumDetailScreen } from './src/screens/AlbumDetailScreen';
 import { MiniPlayer } from './src/components/MiniPlayer';
 import { usePlayerStore } from './src/store/playerStore';
 import { audioService } from './src/services/audioService';
@@ -76,6 +77,11 @@ function AppContent() {
           <Stack.Screen 
             name="ArtistDetails" 
             component={ArtistDetailScreen}
+            options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen 
+            name="AlbumDetails" 
+            component={AlbumDetailScreen}
             options={{ animation: 'slide_from_right' }}
           />
         </Stack.Navigator>

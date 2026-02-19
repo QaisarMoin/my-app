@@ -16,12 +16,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { searchSongs, searchArtists } from '../services/api';
+import { searchSongs, searchArtists, searchAlbums, getBestImage } from '../services/api';
 import { usePlayerStore } from '../store/playerStore';
 import { SongCard } from '../components/SongCard';
 import { ArtistCard } from '../components/ArtistCard';
+import { AlbumCard } from '../components/AlbumCard';
 import { ArtistBottomSheet } from '../components/ArtistBottomSheet';
-import { Song, Artist, RootStackParamList } from '../types';
+import { Song, Artist, Album, RootStackParamList } from '../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -80,6 +81,12 @@ export const HomeScreen: React.FC = () => {
   const [artistPage, setArtistPage] = useState(1);
   const [hasMoreArtists, setHasMoreArtists] = useState(true);
 
+  // Albums State
+  const [albums, setAlbums] = useState<Album[]>([]);
+  const [albumPage, setAlbumPage] = useState(1);
+  const [hasMoreAlbums, setHasMoreAlbums] = useState(true);
+  const [albumLoading, setAlbumLoading] = useState(false);
+
   const [isSearching, setIsSearching] = useState(false);
 
   // Initial fetch for Suggested Content
@@ -87,16 +94,14 @@ export const HomeScreen: React.FC = () => {
     loadSuggestedContent();
   }, []);
 
-  // Fetch default songs when switching to Songs tab
+  // Effect to handle tab changes
   useEffect(() => {
-    if (activeTab === 'Songs' && songs.length === 0 && !query) {
-      // Fetch a default list
-      const defaultSongQuery = 'Top 20';
-      fetchSongs(defaultSongQuery, 1);
-      setSearchText(defaultSongQuery); 
-    } else if (activeTab === 'Artists' && artists.length === 0 && !query) {
-      // Fetch a diverse set of artists for initial view
-      fetchDefaultArtists(1);
+    if (activeTab === 'Songs' && songs.length === 0 && !searchText) {
+       // ... existing songs default ...
+    } else if (activeTab === 'Artists' && artists.length === 0 && !searchText) {
+       fetchDefaultArtists(1);
+    } else if (activeTab === 'Albums' && albums.length === 0 && !searchText) {
+       fetchAlbums('arijit', 1); // User requested default query 'arijit'
     }
   }, [activeTab]);
 
@@ -236,6 +241,26 @@ export const HomeScreen: React.FC = () => {
     }
   }, []);
 
+  // Fetch Albums
+  const fetchAlbums = useCallback(async (q: string, p: number, append = false) => {
+      if (albumLoading) return;
+      setAlbumLoading(true);
+      try {
+          const res = await searchAlbums(q, p, 20);
+          setAlbums(prev => {
+              if (append) {
+                 return [...prev, ...res.albums];
+              }
+              return res.albums;
+          });
+          setHasMoreAlbums(res.albums.length === 20);
+      } catch (e) {
+          console.error("Failed to fetch albums", e);
+      } finally {
+          setAlbumLoading(false);
+      }
+  }, [albumLoading]);
+
   const handleSearch = () => {
     if (!query.trim()) return;
     setPage(1);
@@ -261,6 +286,10 @@ export const HomeScreen: React.FC = () => {
             // Infinite scroll for default list
             fetchDefaultArtists(nextPage);
         }
+    } else if (activeTab === 'Albums' && hasMoreAlbums) {
+        const nextPage = albumPage + 1;
+        setAlbumPage(nextPage);
+        fetchAlbums(searchText || 'arijit', nextPage, true);
     }
   };
 
@@ -411,6 +440,30 @@ export const HomeScreen: React.FC = () => {
              ListFooterComponent={loadingMore ? <ActivityIndicator color="#FF6B35" /> : null}
              ItemSeparatorComponent={() => <View style={styles.separator} />}
            />
+        ) : !isSearching && activeTab === 'Albums' ? (
+          <FlatList
+            data={albums}
+            keyExtractor={(item) => item.id}
+            numColumns={2}
+            columnWrapperStyle={{ justifyContent: 'space-between', paddingHorizontal: 16 }}
+            renderItem={({ item }) => (
+              <AlbumCard 
+                album={item} 
+                onPress={(album) => navigation.navigate('AlbumDetails', { albumId: album.id })} 
+              />
+            )}
+            style={{flex: 1}}
+            contentContainerStyle={{ paddingBottom: currentSong ? 160 : 100, paddingTop: 16 }}
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.5}
+            // Optimization Props
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            removeClippedSubviews={true}
+            ListFooterComponent={albumLoading && albumPage > 1 ? <ActivityIndicator color="#FF6B35" style={{margin: 20}} /> : null}
+            ListEmptyComponent={!albumLoading ? <View style={{padding: 20}}><Text style={{textAlign: 'center', color: '#888'}}>No albums found</Text></View> : null}
+          />
         ) : (
           /* Search/Songs Results List */
           <FlashList

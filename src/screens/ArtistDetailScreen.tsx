@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -34,8 +34,17 @@ export const ArtistDetailScreen: React.FC = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [totalSongs, setTotalSongs] = useState(0);
-  const [hasMore, setHasMore] = useState(true); // New state
-  const [isFallback, setIsFallback] = useState(false); // New state
+  const [hasMore, setHasMore] = useState(true);
+  const [isFallback, setIsFallback] = useState(false);
+  
+  // Optimization: Stable Ref for songs to avoid re-creating handlePlay on every render
+  const songsRef = useRef<Song[]>([]); 
+  useEffect(() => { songsRef.current = songs; }, [songs]);
+
+  // Optimization: Stable Play Handler using Ref
+  const handlePlaySong = useCallback((song: Song) => {
+      playSong(song, songsRef.current);
+  }, [playSong]);
 
   useEffect(() => {
     loadData();
@@ -122,7 +131,10 @@ export const ArtistDetailScreen: React.FC = () => {
           }
 
           if (newSongs.length > 0) {
-              setSongs(prev => [...prev, ...newSongs]);
+              setSongs(prev => {
+                  const filtered = newSongs.filter(n => !prev.some(p => p.id === n.id));
+                  return [...prev, ...filtered];
+              });
               setPage(nextPage);
               // Simple check for end of list
               setHasMore(newSongs.length === 20);
@@ -211,17 +223,25 @@ export const ArtistDetailScreen: React.FC = () => {
             data={songs}
             keyExtractor={(item) => item.id}
             ListHeaderComponent={renderHeader}
-            renderItem={({ item, index }) => (
+            renderItem={({ item }) => (
                 <SongCard 
                     song={item} 
-                    onPlay={() => playSong(item, songs)}
-                    // isActive...
+                    onPlay={handlePlaySong} // Stable callback
+                    // isActive={currentSong?.id === item.id} // Optional: Enable if needed (minor perf cost)
                 />
             )}
             onEndReached={loadMoreSongs}
             onEndReachedThreshold={0.5}
-            ListFooterComponent={loadingMore ? <ActivityIndicator color="#FF6B35" style={{margin: 20}} /> : null}
+            // 🔥 PERFORMANCE PROPS
+            initialNumToRender={10}
+            maxToRenderPerBatch={10}
+            windowSize={5} // Reduce memory usage
+            removeClippedSubviews={true} // Unmount off-screen items
+            getItemLayout={(data, index) => (
+                {length: 70, offset: 70 * index, index} // Fixed height optimization
+            )}
             contentContainerStyle={{ paddingBottom: 120 }}
+            ListFooterComponent={loadingMore ? <ActivityIndicator color="#FF6B35" style={{margin: 20}} /> : null}
           />
       )}
     </SafeAreaView>

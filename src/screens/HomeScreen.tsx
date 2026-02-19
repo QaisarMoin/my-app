@@ -273,9 +273,9 @@ export const HomeScreen: React.FC = () => {
   const handleLoadMore = () => {
     if (loadingMore || loading) return;
     
-    if (activeTab === 'Songs' && hasMore && searchText) {
+    if (activeTab === 'Songs' && hasMore) {
         setPage(prev => prev + 1);
-        fetchSongs(searchText, page + 1, true);
+        fetchSongs(searchText || 'latest', page + 1, true);
     } else if (activeTab === 'Artists' && hasMoreArtists) {
         const nextPage = artistPage + 1;
         setArtistPage(nextPage);

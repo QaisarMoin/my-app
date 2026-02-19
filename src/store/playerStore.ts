@@ -15,16 +15,26 @@ interface PlayerState {
   duration: number;
   isLoading: boolean;
 
-  // Actions
-  playSong: (song: Song, queue?: Song[]) => Promise<void>;
-  togglePlayPause: () => Promise<void>;
+  isShuffle: boolean;
+  repeatMode: 'off' | 'one' | 'all';
+  
+  toggleShuffle: () => void;
+  toggleRepeat: () => void;
+
+  // Modified Actions
   playNext: () => Promise<void>;
   playPrevious: () => Promise<void>;
+  
+  // Restored Actions
+  playSong: (song: Song, queue?: Song[]) => Promise<void>;
+  togglePlayPause: () => Promise<void>;
   seekTo: (positionMs: number) => Promise<void>;
   addToQueue: (song: Song) => void;
   enqueueNext: (song: Song) => void;
   removeFromQueue: (index: number) => void;
   reorderQueue: (fromIndex: number, toIndex: number) => void;
+
+  // ... existing ...
   setPosition: (position: number) => void;
   setDuration: (duration: number) => void;
   setIsPlaying: (isPlaying: boolean) => void;
@@ -79,28 +89,75 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
   },
 
+  isShuffle: false,
+  repeatMode: 'off',
+
+  toggleShuffle: () => set(state => ({ isShuffle: !state.isShuffle })),
+  
+  toggleRepeat: () => set(state => {
+    const modes: ('off' | 'all' | 'one')[] = ['off', 'all', 'one'];
+    const nextIndex = (modes.indexOf(state.repeatMode) + 1) % modes.length;
+    return { repeatMode: modes[nextIndex] };
+  }),
+
   playNext: async () => {
-    const { queue, currentIndex } = get();
+    const { queue, currentIndex, isShuffle, repeatMode, playSong } = get();
     if (queue.length === 0) return;
-    const nextIndex = (currentIndex + 1) % queue.length;
+
+    if (repeatMode === 'one') {
+      // Replay current
+      await audioService.seekTo(0);
+      await audioService.resume();
+      set({ isPlaying: true });
+      return;
+    }
+
+    let nextIndex = currentIndex + 1;
+
+    if (isShuffle) {
+      // Pick random index
+      nextIndex = Math.floor(Math.random() * queue.length);
+      // Avoid same song if queue > 1
+      if (queue.length > 1 && nextIndex === currentIndex) {
+        nextIndex = (nextIndex + 1) % queue.length;
+      }
+    } else {
+      // Normal flow
+      if (nextIndex >= queue.length) {
+        if (repeatMode === 'all') {
+          nextIndex = 0; // Wrap
+        } else {
+          return; // Stop at end
+        }
+      }
+    }
+
     const nextSong = queue[nextIndex];
     if (nextSong) {
-      await get().playSong(nextSong, queue);
+      await playSong(nextSong, queue);
     }
   },
 
   playPrevious: async () => {
-    const { queue, currentIndex, position } = get();
+    const { queue, currentIndex, position, playSong } = get();
     // If more than 3 seconds in, restart current song
     if (position > 3000) {
       await audioService.seekTo(0);
       return;
     }
+    
     if (queue.length === 0) return;
+    
+    // Simple previous logic - logic for shuffle playPrevious is complex (history stack), 
+    // sticking to index based for simplicity or random if shuffle?
+    // Let's stick to index decrement for previous unless strictly shuffle history (which we don't have).
+    // Or just random -> random? No, previous usually means "back". 
+    // Let's just go back in index wrapping around.
+    
     const prevIndex = currentIndex > 0 ? currentIndex - 1 : queue.length - 1;
     const prevSong = queue[prevIndex];
     if (prevSong) {
-      await get().playSong(prevSong, queue);
+      await playSong(prevSong, queue);
     }
   },
 

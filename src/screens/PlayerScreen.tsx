@@ -42,7 +42,7 @@ export const PlayerScreen: React.FC = () => {
         <View style={styles.emptyContainer}>
           <Ionicons name="musical-note-outline" size={80} color="#FF6B35" />
           <Text style={styles.emptyText}>No song playing</Text>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('MainTabs' as never)}>
             <Text style={styles.backLink}>← Go back</Text>
           </TouchableOpacity>
         </View>
@@ -61,7 +61,7 @@ export const PlayerScreen: React.FC = () => {
       <View style={styles.container}>
         {/* Top Bar */}
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('MainTabs' as never)} style={styles.backBtn}>
             <Ionicons name="chevron-down" size={28} color="#1A1A1A" />
           </TouchableOpacity>
           <View style={styles.topCenter}>

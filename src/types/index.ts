@@ -1,7 +1,15 @@
 export type RootStackParamList = {
-  Home: undefined;
+  MainTabs: undefined;
   Player: undefined;
   Queue: undefined;
+  ArtistDetails: { artistId: string; initialArtist?: Artist };
+};
+
+export type MainTabParamList = {
+  Home: undefined;
+  Favorites: undefined;
+  Playlists: undefined;
+  Settings: undefined;
 };
 
 export interface SongImage {
@@ -14,13 +22,7 @@ export interface DownloadUrl {
   url: string;
 }
 
-export interface Artist {
-  id: string;
-  name: string;
-  role: string;
-  image?: SongImage[];
-  url?: string;
-}
+
 
 export interface Song {
   id: string;
@@ -48,4 +50,22 @@ export interface SearchResponse {
 export interface SongDetailResponse {
   success: boolean;
   data: Song[];
+}
+
+export interface Artist {
+  id: string;
+  name: string;
+  role: string;
+  image: { quality: string; url: string }[];
+  type: string;
+  url: string;
+}
+
+export interface SearchArtistResponse {
+  success: boolean;
+  data: {
+    total: number;
+    start: number;
+    results: Artist[];
+  };
 }

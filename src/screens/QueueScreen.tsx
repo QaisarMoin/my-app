@@ -159,7 +159,7 @@ export const QueueScreen: React.FC = () => {
             renderItem={renderItem}
             showsVerticalScrollIndicator={false}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, { paddingBottom: 90 }]}
           />
         )}
       </View>

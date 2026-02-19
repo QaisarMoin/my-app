@@ -8,31 +8,116 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StatusBar,
+  ScrollView,
+  Image,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { searchSongs } from '../services/api';
+import { searchSongs, searchArtists } from '../services/api';
 import { usePlayerStore } from '../store/playerStore';
 import { SongCard } from '../components/SongCard';
-import { Song } from '../types';
-import { RootStackParamList } from '../types';
+import { ArtistCard } from '../components/ArtistCard';
+import { ArtistBottomSheet } from '../components/ArtistBottomSheet';
+import { Song, Artist, RootStackParamList } from '../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+const TABS = ['Suggested', 'Songs', 'Artists', 'Albums'];
+
+// Mock data helpers or derived from API
+const SectionHeader = ({ title, onPress }: { title: string; onPress?: () => void }) => (
+  <View style={styles.sectionHeader}>
+    <Text style={styles.sectionTitle}>{title}</Text>
+    <TouchableOpacity onPress={onPress}>
+      <Text style={styles.seeAllText}>See All</Text>
+    </TouchableOpacity>
+  </View>
+);
+
+const HorizontalCard = ({ item, onPress }: { item: Song; onPress: () => void }) => (
+  <TouchableOpacity style={styles.horizontalCard} onPress={onPress}>
+    <Image 
+      source={{ uri: item.image && item.image.length > 0 ? item.image[item.image.length - 1]?.url : 'https://via.placeholder.com/140' }} 
+      style={styles.cardImage} 
+    />
+    <Text style={styles.cardTitle} numberOfLines={1}>{item.name}</Text>
+    <Text style={styles.cardSubtitle} numberOfLines={1}>{item.primaryArtists || 'Unknown Artist'}</Text>
+  </TouchableOpacity>
+);
+
+const ArtistCircle = ({ name, image, onPress }: { name: string; image: string; onPress: () => void }) => (
+  <TouchableOpacity style={styles.artistContainer} onPress={onPress}>
+    <Image source={{ uri: image }} style={styles.artistImage} />
+    <Text style={styles.artistName} numberOfLines={1}>{name}</Text>
+  </TouchableOpacity>
+);
 
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const { playSong, currentSong, isPlaying } = usePlayerStore();
 
+  const [activeTab, setActiveTab] = useState('Suggested');
   const [query, setQuery] = useState('');
   const [songs, setSongs] = useState<Song[]>([]);
+  const [suggestedSongs, setSuggestedSongs] = useState<Song[]>([]);
+  const [recentData, setRecentData] = useState<Song[]>([]);
+  const [artistData, setArtistData] = useState<Song[]>([]);
+  const [mostPlayedData, setMostPlayedData] = useState<Song[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [searchText, setSearchText] = useState('');
+
+  // Artists State
+  const [artists, setArtists] = useState<Artist[]>([]);
+  const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null);
+  const [showArtistSheet, setShowArtistSheet] = useState(false);
+  const [artistPage, setArtistPage] = useState(1);
+  const [hasMoreArtists, setHasMoreArtists] = useState(true);
+
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Initial fetch for Suggested Content
+  useEffect(() => {
+    loadSuggestedContent();
+  }, []);
+
+  // Fetch default songs when switching to Songs tab
+  useEffect(() => {
+    if (activeTab === 'Songs' && songs.length === 0 && !query) {
+      // Fetch a default list
+      const defaultSongQuery = 'Top 20';
+      fetchSongs(defaultSongQuery, 1);
+      setSearchText(defaultSongQuery); 
+    } else if (activeTab === 'Artists' && artists.length === 0 && !query) {
+      // Fetch a diverse set of artists for initial view
+      fetchDefaultArtists(1);
+    }
+  }, [activeTab]);
+
+  const loadSuggestedContent = async () => {
+    try {
+      // Fetch diverse data to populate the distinct sections
+      // Recently Played (Simulated with 'Latest' or 'Trending')
+      const [recentRes, artistRes, mostPlayedRes] = await Promise.all([
+        searchSongs('latest english', 1, 10),
+        searchSongs('best artists', 1, 10), 
+        searchSongs('global top 20', 1, 10)
+      ]);
+
+      setRecentData(recentRes.songs);
+      // For artists, ideally we'd have an artists endpoint, but we extract from songs
+      setArtistData(artistRes.songs);
+      setMostPlayedData(mostPlayedRes.songs);
+    } catch (e) {
+      console.log('Failed to load suggested', e);
+    }
+  };
 
   const fetchSongs = useCallback(async (q: string, p: number, append = false) => {
     if (!q.trim()) return;
@@ -42,7 +127,13 @@ export const HomeScreen: React.FC = () => {
 
     try {
       const { songs: results, total } = await searchSongs(q, p);
-      setSongs(prev => append ? [...prev, ...results] : results);
+      setSongs(prev => {
+        if (append) {
+          const newSongs = results.filter(r => !prev.some(p => p.id === r.id));
+          return [...prev, ...newSongs];
+        }
+        return results;
+      });
       setHasMore(results.length === 20 && (p * 20) < total);
     } catch (e: any) {
       setError(e.message || 'Failed to load songs');
@@ -52,11 +143,97 @@ export const HomeScreen: React.FC = () => {
     }
   }, []);
 
-  // Load default songs on mount
-  useEffect(() => {
-    fetchSongs('arijit singh', 1);
-    setSearchText('arijit singh');
-    setQuery('arijit singh');
+  // 🌟 CURATED LIST OF GLOBAL SUPERSTARS (for Infinite Scroll)
+  const FAMOUS_ARTISTS = [
+    // India (Bollywood/Pop/Indie)
+    'Arijit Singh', 'Atif Aslam', 'Sonu Nigam', 'Shreya Ghoshal', 'Badshah', 
+    'Diljit Dosanjh', 'Neha Kakkar', 'Sidhu Moose Wala', 'A.R. Rahman', 'Pritam',
+    'KK', 'Mohit Chauhan', 'Jubin Nautiyal', 'Armaan Malik', 'Darshan Raval',
+    'Anuv Jain', 'Prateek Kuhad', 'King', 'MC Stan', 'Divine', 'Emiway Bantai',
+    'Yo Yo Honey Singh', 'Guru Randhawa', 'Harrdy Sandhu', 'Sunidhi Chauhan',
+    'Udit Narayan', 'Alka Yagnik', 'Kumar Sanu', 'Shaan', 'Amit Trivedi',
+    // Global Pop/Hip-Hop
+    'Justin Bieber', 'Taylor Swift', 'The Weeknd', 'Drake', 'Eminem',
+    'Ed Sheeran', 'Ariana Grande', 'Post Malone', 'Bruno Mars', 'Coldplay',
+    'Imagine Dragons', 'Maroon 5', 'Shawn Mendes', 'Dua Lipa', 'Billie Eilish',
+    'Rihanna', 'Beyonce', 'Selena Gomez', 'Harry Styles', 'Adele',
+    'Kanye West', 'Kendrick Lamar', 'Travis Scott', 'J. Cole', 'Future',
+    'XXXTENTACION', 'Juice WRLD', 'Lil Uzi Vert', 'Cardi B', 'Nicki Minaj',
+    // K-Pop / Latin / Others
+    'BTS', 'BLACKPINK', 'Bad Bunny', 'J Balvin', 'Shakira', 'Daddy Yankee',
+    'Alan Walker', 'Marshmello', 'DJ Snake', 'David Guetta', 'Calvin Harris'
+  ];
+
+  // Fetch diverse artists with Pagination (Batch of 5)
+  const fetchDefaultArtists = useCallback(async (pageNum: number = 1) => {
+      if (loading) return;
+      if (pageNum === 1) setLoading(true);
+      else setLoadingMore(true);
+
+      try {
+          // Pagination Logic: Slice the big list
+          const BATCH_SIZE = 5; 
+          const start = (pageNum - 1) * BATCH_SIZE;
+          const end = start + BATCH_SIZE;
+          const batch = FAMOUS_ARTISTS.slice(start, end);
+
+          if (batch.length === 0) {
+              setHasMoreArtists(false);
+              setLoading(false);
+              setLoadingMore(false);
+              return;
+          }
+
+          // Fetch top 1 result for each name (Precision > Quantity for curated list)
+          const promises = batch.map(q => searchArtists(q, 1, 1)); 
+          const results = await Promise.all(promises);
+          
+          let newArtists: Artist[] = [];
+          results.forEach(res => {
+              newArtists = [...newArtists, ...res.artists];
+          });
+
+          // Deduplicate
+          newArtists = newArtists.filter(a => !!a && !!a.id); // Ensure valid
+          
+          setArtists(prev => {
+              if (pageNum === 1) return newArtists;
+              // Filter duplicates against previous state
+              const filtered = newArtists.filter(n => !prev.some(p => p.id === n.id));
+              return [...prev, ...filtered];
+          });
+          
+          setHasMoreArtists(end < FAMOUS_ARTISTS.length);
+      } catch (e) {
+          console.error('Failed to load default artists', e);
+      } finally {
+          setLoading(false);
+          setLoadingMore(false);
+      }
+  }, []);
+
+  const fetchArtists = useCallback(async (q: string, p: number, append = false) => {
+    if (!q.trim()) return;
+    if (p === 1) setLoading(true);
+    else setLoadingMore(true);
+    setError(null);
+
+    try {
+      const { artists: results, total } = await searchArtists(q, p);
+      setArtists(prev => {
+        if (append) {
+          const newArtists = results.filter(r => !prev.some(p => p.id === r.id));
+          return [...prev, ...newArtists];
+        }
+        return results;
+      });
+      setHasMoreArtists(results.length === 20 && (p * 20) < total);
+    } catch (e: any) {
+      console.log('Error fetching artists', e);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
   }, []);
 
   const handleSearch = () => {
@@ -65,44 +242,84 @@ export const HomeScreen: React.FC = () => {
     setHasMore(true);
     fetchSongs(query, 1);
     setSearchText(query);
+    setActiveTab('Songs'); // Switch to songs view on search
   };
 
   const handleLoadMore = () => {
-    if (loadingMore || !hasMore || loading) return;
-    const nextPage = page + 1;
-    setPage(nextPage);
-    fetchSongs(searchText, nextPage, true);
+    if (loadingMore || loading) return;
+    
+    if (activeTab === 'Songs' && hasMore && searchText) {
+        setPage(prev => prev + 1);
+        fetchSongs(searchText, page + 1, true);
+    } else if (activeTab === 'Artists' && hasMoreArtists) {
+        const nextPage = artistPage + 1;
+        setArtistPage(nextPage);
+        
+        if (searchText) {
+            fetchArtists(searchText, nextPage, true);
+        } else {
+            // Infinite scroll for default list
+            fetchDefaultArtists(nextPage);
+        }
+    }
   };
 
-  const handlePlay = async (song: Song) => {
-    await playSong(song, songs);
+  const handlePlay = useCallback(async (song: Song, list: Song[] = []) => {
+    await playSong(song, list.length ? list : [song]);
     navigation.navigate('Player');
-  };
+  }, [playSong, navigation]);
 
-  const renderEmpty = () => {
-    if (loading) return null;
+  const renderSuggestedView = () => {
     return (
-      <View style={styles.emptyContainer}>
-        <Ionicons name="sad-outline" size={64} color="#FF6B35" />
-        <Text style={styles.emptyTitle}>Not Found</Text>
-        <Text style={styles.emptyText}>
-          Sorry, the keyword you entered cannot be found, please check again or search with another keyword.
-        </Text>
-      </View>
-    );
-  };
+      <ScrollView 
+        contentContainerStyle={[
+          styles.scrollContent, 
+          { paddingBottom: currentSong ? 160 : 100 }
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Recently Played Section */}
+        <SectionHeader title="Recently Played" />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+          {recentData.map(song => (
+            <HorizontalCard 
+              key={song.id} 
+              item={song} 
+              onPress={() => handlePlay(song, recentData)} 
+            />
+          ))}
+        </ScrollView>
 
-  const renderFooter = () => {
-    if (!loadingMore) return null;
-    return (
-      <View style={styles.footer}>
-        <ActivityIndicator size="small" color="#FF6B35" />
-      </View>
+        {/* Artists Section */}
+        <SectionHeader title="Artists" />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+          {artistData.map(song => (
+            <ArtistCircle 
+              key={`artist-${song.id}`}
+              name={(song.primaryArtists || song.name).split(',')[0]} 
+              image={song.image && song.image.length > 0 ? song.image[song.image.length - 1]?.url : 'https://via.placeholder.com/100'} 
+              onPress={() => {}} // Placeholder
+            />
+          ))}
+        </ScrollView>
+
+        {/* Most Played Section */}
+        <SectionHeader title="Most Played" />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
+          {mostPlayedData.map(song => (
+            <HorizontalCard 
+              key={song.id} 
+              item={song} 
+              onPress={() => handlePlay(song, mostPlayedData)} 
+            />
+          ))}
+        </ScrollView>
+      </ScrollView>
     );
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
       <View style={styles.container}>
         {/* Header */}
@@ -111,63 +328,107 @@ export const HomeScreen: React.FC = () => {
             <Ionicons name="musical-notes" size={28} color="#FF6B35" />
             <Text style={styles.logoText}>Mume</Text>
           </View>
-          <TouchableOpacity style={styles.queueBtn} onPress={() => navigation.navigate('Queue')}>
-            <Ionicons name="list" size={22} color="#1A1A1A" />
+          <TouchableOpacity style={styles.searchIconBtn}>
+            <Ionicons name="search" size={24} color="#1A1A1A" />
           </TouchableOpacity>
         </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={18} color="#888" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search songs, artists..."
-            placeholderTextColor="#aaa"
-            value={query}
-            onChangeText={setQuery}
-            onSubmitEditing={handleSearch}
-            returnKeyType="search"
-          />
-          {query.length > 0 && (
-            <TouchableOpacity onPress={() => { setQuery(''); setSongs([]); }}>
-              <Ionicons name="close-circle" size={18} color="#aaa" />
-            </TouchableOpacity>
-          )}
+        {/* Tabs */}
+        <View style={styles.tabsContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContent}>
+            {TABS.map((tab) => (
+              <TouchableOpacity
+                key={tab}
+                style={[styles.tabItem, activeTab === tab && styles.activeTabItem]}
+                onPress={() => setActiveTab(tab)}
+              >
+                <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
+                  {tab}
+                </Text>
+                {activeTab === tab && <View style={styles.activeIndicator} />}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
-        {/* Results Count */}
-        {songs.length > 0 && !loading && (
-          <View style={styles.resultsRow}>
-            <Text style={styles.resultsCount}>{songs.length} songs</Text>
-            <Text style={styles.resultsQuery}>"{searchText}"</Text>
+        {/* Search Bar - Toggle visibility */}
+        {isSearching && (
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={18} color="#888" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search songs, artists..."
+              placeholderTextColor="#aaa"
+              value={query}
+              onChangeText={setQuery}
+              onSubmitEditing={handleSearch}
+              returnKeyType="search"
+              autoFocus
+            />
           </View>
         )}
 
-        {/* Error State */}
-        {error && !loading && (
-          <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle-outline" size={48} color="#FF6B35" />
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.retryBtn} onPress={() => fetchSongs(searchText, 1)}>
-              <Text style={styles.retryText}>Retry</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Loading State */}
-        {loading && (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#FF6B35" />
-            <Text style={styles.loadingText}>Loading songs...</Text>
-          </View>
-        )}
-
-        {/* Song List */}
-        {!loading && !error && (
-          <FlatList
+        {/* Content Switcher */}
+        {!isSearching && activeTab === 'Suggested' ? (
+          renderSuggestedView()
+        ) : !isSearching && activeTab === 'Artists' ? (
+           /* Artists List */
+           <FlashList
+             data={artists}
+             keyExtractor={(item) => item.id}
+             estimatedItemSize={84}
+             ListHeaderComponent={() => (
+                 <View style={styles.songsHeader}>
+                   <Text style={styles.songsCount}>{artists.length || '0'} artists</Text>
+                   <TouchableOpacity style={styles.sortBtn}>
+                     <Text style={styles.sortText}>Date Added</Text>
+                     <Ionicons name="swap-vertical" size={16} color="#FF6B35" />
+                   </TouchableOpacity>
+                 </View>
+             )}
+             renderItem={({ item }) => (
+               <ArtistCard
+                 artist={item}
+                 onPress={() => {
+                     navigation.navigate('ArtistDetails', {
+                         artistId: item.id,
+                         initialArtist: item
+                     });
+                 }}
+                 onMorePress={() => {
+                     setSelectedArtist(item);
+                     setShowArtistSheet(true);
+                 }}
+               />
+             )}
+             onEndReached={handleLoadMore}
+             onEndReachedThreshold={0.5}
+             showsVerticalScrollIndicator={false}
+             contentContainerStyle={{
+               paddingBottom: currentSong ? 160 : 100,
+             }}
+             ListEmptyComponent={artists.length === 0 ? <View style={styles.emptyList} /> : null}
+             ListFooterComponent={loadingMore ? <ActivityIndicator color="#FF6B35" /> : null}
+             ItemSeparatorComponent={() => <View style={styles.separator} />}
+           />
+        ) : (
+          /* Search/Songs Results List */
+          <FlashList
             data={songs}
             keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
+            estimatedItemSize={80}
+            ListHeaderComponent={() => (
+              !isSearching && activeTab === 'Songs' ? (
+                <View style={styles.songsHeader}>
+                  <Text style={styles.songsCount}>{songs.length || '0'} songs</Text>
+                  <TouchableOpacity style={styles.sortBtn}>
+                    <Text style={styles.sortText}>Ascending</Text>
+                    <Ionicons name="swap-vertical" size={16} color="#FF6B35" />
+                  </TouchableOpacity>
+                </View>
+              ) : null
+            )}
+            renderItem={({ item, index }) => (
               <SongCard
                 song={item}
                 onPlay={handlePlay}
@@ -175,15 +436,23 @@ export const HomeScreen: React.FC = () => {
                 isPlaying={currentSong?.id === item.id && isPlaying}
               />
             )}
-            ListEmptyComponent={renderEmpty}
-            ListFooterComponent={renderFooter}
             onEndReached={handleLoadMore}
-            onEndReachedThreshold={0.3}
+            onEndReachedThreshold={0.5}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={songs.length === 0 ? styles.emptyList : undefined}
+            contentContainerStyle={{
+              paddingBottom: currentSong ? 160 : 100,
+            }}
+            ListEmptyComponent={songs.length === 0 ? <View style={styles.emptyList} /> : null}
+            ListFooterComponent={loadingMore ? <ActivityIndicator color="#FF6B35" /> : null}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
           />
         )}
+        
+        <ArtistBottomSheet 
+            visible={showArtistSheet}
+            onClose={() => setShowArtistSheet(false)}
+            artist={selectedArtist}
+        />
       </View>
     </SafeAreaView>
   );
@@ -215,7 +484,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1A1A1A',
   },
-  queueBtn: {
+  searchIconBtn: {
     padding: 4,
   },
   searchContainer: {
@@ -237,83 +506,127 @@ const styles = StyleSheet.create({
     color: '#1A1A1A',
     padding: 0,
   },
-  resultsRow: {
+  tabsContainer: {
+    marginBottom: 16,
+  },
+  tabsContent: {
+    paddingHorizontal: 16,
+    gap: 24,
+  },
+  tabItem: {
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  activeTabItem: {
+  },
+  tabText: {
+    fontSize: 16,
+    color: '#888',
+    fontWeight: '500',
+  },
+  activeTabText: {
+    color: '#FF6B35',
+    fontWeight: '700',
+  },
+  activeIndicator: {
+    height: 3,
+    backgroundColor: '#FF6B35',
+    width: '60%',
+    marginTop: 4,
+    borderRadius: 1.5,
+  },
+  scrollContent: {
+   // Padding bottom handled dynamically
+  },
+  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    gap: 6,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    marginTop: 8,
   },
-  resultsCount: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1A1A1A',
-  },
-  resultsQuery: {
-    fontSize: 13,
-    color: '#888',
-  },
-  separator: {
-    height: 1,
-    backgroundColor: '#F5F5F5',
-    marginLeft: 78,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: '#888',
-  },
-  errorContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    gap: 12,
-  },
-  errorText: {
-    fontSize: 14,
-    color: '#888',
-    textAlign: 'center',
-  },
-  retryBtn: {
-    backgroundColor: '#FF6B35',
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  retryText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 40,
-    gap: 12,
-    paddingTop: 60,
-  },
-  emptyTitle: {
+  sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#1A1A1A',
   },
-  emptyText: {
+  seeAllText: {
     fontSize: 14,
+    color: '#FF6B35',
+    fontWeight: '600',
+  },
+  horizontalList: {
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+    gap: 16,
+  },
+  horizontalCard: {
+    width: 140,
+    marginRight: 0,
+  },
+  cardImage: {
+    width: 140,
+    height: 140,
+    borderRadius: 16,
+    marginBottom: 12,
+    backgroundColor: '#f0f0f0',
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    marginBottom: 4,
+  },
+  cardSubtitle: {
+    fontSize: 12,
     color: '#888',
+  },
+  artistContainer: {
+    alignItems: 'center',
+    width: 100,
+  },
+  artistImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    marginBottom: 8,
+    backgroundColor: '#f0f0f0',
+  },
+  artistName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1A1A1A',
     textAlign: 'center',
-    lineHeight: 20,
   },
   emptyList: {
     flex: 1,
   },
-  footer: {
-    paddingVertical: 16,
+  separator: {
+    height: 1,
+    backgroundColor: '#F5F5F5',
+    marginLeft: 16, // Adjusted separator margin
+  },
+  songsHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  songsCount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1A1A1A',
+  },
+  sortBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  sortText: {
+    fontSize: 14,
+    color: '#FF6B35',
+    fontWeight: '600',
   },
 });

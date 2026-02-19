@@ -22,6 +22,7 @@ interface PlayerState {
   playPrevious: () => Promise<void>;
   seekTo: (positionMs: number) => Promise<void>;
   addToQueue: (song: Song) => void;
+  enqueueNext: (song: Song) => void;
   removeFromQueue: (index: number) => void;
   reorderQueue: (fromIndex: number, toIndex: number) => void;
   setPosition: (position: number) => void;
@@ -116,6 +117,20 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       set({ queue: newQueue });
       AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(newQueue));
     }
+  },
+
+  enqueueNext: (song: Song) => {
+    const { queue, currentIndex } = get();
+    const exists = queue.find(s => s.id === song.id);
+    if (exists) return; // Or prevent duplicates
+
+    const newQueue = [...queue];
+    // Insert after current index
+    const insertIndex = currentIndex + 1;
+    newQueue.splice(insertIndex, 0, song);
+    
+    set({ queue: newQueue });
+    AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(newQueue));
   },
 
   removeFromQueue: (index: number) => {

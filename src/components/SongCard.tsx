@@ -20,7 +20,7 @@ interface SongCardProps {
   index?: number;
 }
 
-export const SongCard: React.FC<SongCardProps> = ({
+export const SongCard = React.memo<SongCardProps>(({
   song,
   onPlay,
   isPlaying = false,
@@ -43,39 +43,38 @@ export const SongCard: React.FC<SongCardProps> = ({
           <Text style={styles.index}>{(index ?? 0) + 1}</Text>
         ) : null}
         <View style={styles.imageWrapper}>
-          {imageUrl ? (
-            <Image source={{ uri: imageUrl }} style={styles.image} />
-          ) : (
-            <View style={[styles.image, styles.imagePlaceholder]}>
-              <Ionicons name="musical-note" size={20} color="#FF6B35" />
-            </View>
-          )}
+          <Image 
+            source={{ uri: imageUrl || 'https://via.placeholder.com/50' }} 
+            style={styles.image} 
+          />
         </View>
         <View style={styles.info}>
           <Text style={[styles.name, isActive && styles.activeName]} numberOfLines={1}>
             {song.name}
           </Text>
           <Text style={styles.artist} numberOfLines={1}>
-            {artist}
+            {artist} | {duration} mins
           </Text>
         </View>
       </View>
       <View style={styles.rightSection}>
-        <Text style={styles.duration}>{duration}</Text>
         <TouchableOpacity
           style={[styles.playBtn, isActive && isPlaying && styles.playBtnActive]}
           onPress={() => onPlay(song)}
         >
           <Ionicons
             name={isActive && isPlaying ? 'pause' : 'play'}
-            size={14}
+            size={16}
             color={isActive ? '#fff' : '#FF6B35'}
           />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.moreBtn}>
+          <Ionicons name="ellipsis-vertical" size={20} color="#888" />
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -83,7 +82,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
     backgroundColor: '#fff',
   },
   activeContainer: {
@@ -93,6 +92,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    marginRight: 12,
   },
   index: {
     width: 24,
@@ -108,21 +108,16 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 8,
-  },
-  imagePlaceholder: {
-    backgroundColor: '#F5F5F5',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: '#f0f0f0',
   },
   info: {
     flex: 1,
-    paddingRight: 8,
   },
   name: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
     color: '#1A1A1A',
-    marginBottom: 3,
+    marginBottom: 4,
   },
   activeName: {
     color: '#FF6B35',
@@ -134,11 +129,7 @@ const styles = StyleSheet.create({
   rightSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-  },
-  duration: {
-    fontSize: 12,
-    color: '#888',
+    gap: 12,
   },
   playBtn: {
     width: 32,
@@ -150,5 +141,8 @@ const styles = StyleSheet.create({
   },
   playBtnActive: {
     backgroundColor: '#FF6B35',
+  },
+  moreBtn: {
+    padding: 4,
   },
 });

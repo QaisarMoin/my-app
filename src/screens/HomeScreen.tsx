@@ -357,7 +357,7 @@ export const HomeScreen: React.FC = () => {
             <Ionicons name="musical-notes" size={28} color="#FF6B35" />
             <Text style={styles.logoText}>Mume</Text>
           </View>
-          <TouchableOpacity style={styles.searchIconBtn}>
+          <TouchableOpacity style={styles.searchIconBtn} onPress={() => navigation.navigate('Search' as any)}>
             <Ionicons name="search" size={24} color="#1A1A1A" />
           </TouchableOpacity>
         </View>

@@ -97,7 +97,7 @@ export const HomeScreen: React.FC = () => {
   // Effect to handle tab changes
   useEffect(() => {
     if (activeTab === 'Songs' && songs.length === 0 && !searchText) {
-       // ... existing songs default ...
+       fetchSongs('latest', 1);
     } else if (activeTab === 'Artists' && artists.length === 0 && !searchText) {
        fetchDefaultArtists(1);
     } else if (activeTab === 'Albums' && albums.length === 0 && !searchText) {
@@ -308,7 +308,7 @@ export const HomeScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* Recently Played Section */}
-        <SectionHeader title="Recently Played" />
+        <SectionHeader title="Recently Played" onPress={() => setActiveTab('Songs')} />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
           {recentData.map(song => (
             <HorizontalCard 
@@ -320,20 +320,20 @@ export const HomeScreen: React.FC = () => {
         </ScrollView>
 
         {/* Artists Section */}
-        <SectionHeader title="Artists" />
+        <SectionHeader title="Artists" onPress={() => setActiveTab('Artists')} />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
           {artistData.map(song => (
             <ArtistCircle 
               key={`artist-${song.id}`}
               name={(song.primaryArtists || song.name).split(',')[0]} 
               image={song.image && song.image.length > 0 ? song.image[song.image.length - 1]?.url : 'https://via.placeholder.com/100'} 
-              onPress={() => {}} // Placeholder
+              onPress={() => navigation.navigate('ArtistDetails', { artistId: song.artists?.primary?.[0]?.id || song.id, initialArtist: { id: song.id, name: song.primaryArtists, url: '', image: song.image, type: 'artist', role: 'music' } })} 
             />
           ))}
         </ScrollView>
 
         {/* Most Played Section */}
-        <SectionHeader title="Most Played" />
+        <SectionHeader title="Most Played" onPress={() => setActiveTab('Songs')} />
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalList}>
           {mostPlayedData.map(song => (
             <HorizontalCard 

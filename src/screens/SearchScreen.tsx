@@ -77,7 +77,19 @@ export const SearchScreen: React.FC = () => {
         else setSongs([]);
 
         if (artistRes.status === 'fulfilled') {
-            const validArtists = artistRes.value.artists.filter(a => a.image && a.image.length > 0 && a.image[0].url);
+            let validArtists = artistRes.value.artists.filter(a => a.image && a.image.length > 0 && a.image[0].url);
+
+            // Prioritize Exact Match
+            const lowerQuery = searchTerm.toLowerCase();
+            validArtists.sort((a, b) => {
+                const aName = a.name.toLowerCase();
+                const bName = b.name.toLowerCase();
+                
+                if (aName === lowerQuery && bName !== lowerQuery) return -1;
+                if (bName === lowerQuery && aName !== lowerQuery) return 1;
+                return 0;
+            });
+
             setArtists(validArtists);
         } else {
             setArtists([]);

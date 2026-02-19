@@ -4,13 +4,13 @@ export type RootStackParamList = {
   Queue: undefined;
   ArtistDetails: { artistId: string; initialArtist?: Artist };
   AlbumDetails: { albumId: string; };
+  Search: undefined;
 };
 
 export type MainTabParamList = {
   Home: undefined;
   Favorites: undefined;
   Playlists: undefined;
-  Search: undefined;
   Settings: undefined;
 };
 

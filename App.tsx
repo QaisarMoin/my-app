@@ -11,6 +11,7 @@ import { PlayerScreen } from './src/screens/PlayerScreen';
 import { QueueScreen } from './src/screens/QueueScreen';
 import { ArtistDetailScreen } from './src/screens/ArtistDetailScreen';
 import { AlbumDetailScreen } from './src/screens/AlbumDetailScreen';
+import { SearchScreen } from './src/screens/SearchScreen';
 import { MiniPlayer } from './src/components/MiniPlayer';
 import { usePlayerStore } from './src/store/playerStore';
 import { audioService } from './src/services/audioService';
@@ -83,6 +84,11 @@ function AppContent() {
             name="AlbumDetails" 
             component={AlbumDetailScreen}
             options={{ animation: 'slide_from_right' }}
+          />
+          <Stack.Screen 
+            name="Search" 
+            component={SearchScreen}
+            options={{ animation: 'fade_from_bottom' }}
           />
         </Stack.Navigator>
 

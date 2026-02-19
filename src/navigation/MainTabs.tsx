@@ -4,7 +4,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { HomeScreen } from '../screens/HomeScreen';
 import { FavoritesScreen } from '../screens/FavoritesScreen';
 import { PlaylistsScreen } from '../screens/PlaylistsScreen';
-import { SearchScreen } from '../screens/SearchScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { MainTabParamList } from '../types';
 
@@ -51,8 +50,6 @@ export const MainTabs = () => {
             iconName = focused ? 'heart' : 'heart-outline';
           } else if (route.name === 'Playlists') {
             iconName = focused ? 'list' : 'list-outline';
-          } else if (route.name === 'Search') {
-            iconName = focused ? 'search' : 'search-outline';
           } else if (route.name === 'Settings') {
             iconName = focused ? 'settings' : 'settings-outline';
           }
@@ -63,7 +60,6 @@ export const MainTabs = () => {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Favorites" component={FavoritesScreen} />
-      <Tab.Screen name="Search" component={SearchScreen} />
       <Tab.Screen name="Playlists" component={PlaylistsScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
